@@ -9,8 +9,9 @@ local CFG = {
   branchSpacing = 6,
   branchLength = 8,
   maxVeinBlocks = 64,
-  returnEvery = 12,
+  statusEvery = 12,
   fuelReserve = 320,
+  longRunFuelTarget = 5000,
   protocol = "mining_turtle_status",
   stateFile = ".spiral-miner-state",
 }
@@ -227,7 +228,7 @@ end
 
 local function safeRoundTripFuel()
   -- From the chest back to the work face and home once more, with a margin.
-  return math.max(CFG.fuelReserve,(#route-1)*2+(CFG.maxVeinBlocks*2)+40)
+  return math.max(CFG.longRunFuelTarget,CFG.fuelReserve,(#route-1)*2+(CFG.maxVeinBlocks*2)+40)
 end
 
 local function returnHome() report("Returning up the spiral"); return followRoute(true) end
@@ -390,7 +391,7 @@ local function digMine()
       turnLeft(); digBranch(CFG.branchLength); face(mainDir)
       turnRight(); digBranch(CFG.branchLength); face(mainDir)
     end
-    if i%CFG.returnEvery==0 then serviceChest(true); report("Searching target layer") end
+    if i%CFG.statusEvery==0 then report("Searching target layer") end
   end
 end
 

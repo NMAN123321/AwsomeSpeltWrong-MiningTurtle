@@ -40,7 +40,7 @@ When a tunnel exposes a recognized resource, the turtle enters the deposit and f
 
 Coal discovered while mining is consumed when fuel falls below the reserve. If that is still insufficient, the turtle follows its recorded spiral route to the surface chest. A turtle cannot scan distant blocks or know where an undiscovered coal vein is, so it cannot selectively travel to nearby coal that it has not already exposed.
 
-The fuel reserve grows with the length of the saved route and includes enough allowance for a maximum-size vein excursion. At the surface, the turtle requires enough fuel for the trip back to work, another return home, vein mining, and a safety margin. If the chest cannot provide that amount, it remains at the chest and stops with an error instead of departing on an unsafe trip.
+At the chest, the turtle fuels itself to `longRunFuelTarget` (5,000 movement operations by default), or a larger dynamically calculated amount when the route requires it. It does not make scheduled unloading trips. It returns only when its resource inventory is full, its calculated safety reserve is threatened, the mining job finishes, or recovery is required. The safety reserve grows with the saved route and includes a maximum-size vein excursion. If the chest cannot provide enough for a safe round trip, it remains at the chest and stops instead of departing unsafely.
 
 ## Safety and chunk loading
 
