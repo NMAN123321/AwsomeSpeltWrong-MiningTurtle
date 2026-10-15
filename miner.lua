@@ -165,6 +165,22 @@ local function matchesResource(name)
   return false
 end
 
+local function isFiller(name)
+  return name=="minecraft:cobblestone" or name=="minecraft:cobbled_deepslate"
+end
+
+local function findFillerSlot()
+  local best=nil
+  local bestCount=0
+  for slot=1,16 do
+    local item=turtle.getItemDetail(slot)
+    if item and isFiller(item.name) and item.count>bestCount then
+      best=slot; bestCount=item.count
+    end
+  end
+  return best
+end
+
 local function refuelTo(target)
   if turtle.getFuelLevel()=="unlimited" then return end
   for slot=1,16 do
@@ -175,12 +191,28 @@ local function refuelTo(target)
 end
 
 local function discardJunk()
+  -- Retain the fullest single stack of cobblestone/cobbled deepslate for floors.
+  local fillerSlot=findFillerSlot()
   for slot=1,16 do
     local item=turtle.getItemDetail(slot)
-    if item and not matchesResource(item.name) and not turtle.refuel(0) then
+    local reservedFiller=item and isFiller(item.name) and slot==fillerSlot
+    if item and not reservedFiller and not matchesResource(item.name) and not turtle.refuel(0) then
       turtle.select(slot); turtle.dropDown()
     end
   end
+end
+
+local function ensureSafeFloor()
+  if turtle.detectDown() then return true end
+  local slot=findFillerSlot()
+  if not slot then
+    error("Unsafe opening below the path and no cobblestone is available")
+  end
+  turtle.select(slot)
+  if not turtle.placeDown() then
+    error("Could not place a safety floor below the path")
+  end
+  return true
 end
 
 local function inventoryFull()
@@ -215,11 +247,16 @@ local function serviceChest(returnAfter)
   local wanted=safeRoundTripFuel()
   for slot=1,16 do
     if turtle.getFuelLevel()=="unlimited" or turtle.getFuelLevel()>=wanted then break end
-    turtle.select(slot)
-    if not chestAction("suck") then break end
-    refuelTo(wanted)
+    if turtle.getItemCount(slot)==0 then
+      turtle.select(slot)
+      if not chestAction("suck") then break end
+      refuelTo(wanted)
+    end
   end
-  for slot=1,16 do turtle.select(slot); if turtle.getItemCount(slot)>0 then chestAction("drop") end end
+  for slot=1,16 do
+    local item=turtle.getItemDetail(slot)
+    if item and not isFiller(item.name) then turtle.select(slot); chestAction("drop") end
+  end
   face(home.dir)
   local fuel=turtle.getFuelLevel()
   if returnAfter and fuel~="unlimited" and fuel<wanted then
@@ -303,6 +340,7 @@ local function mineExposedResources()
 
   explore()
   face(originalDir)
+  ensureSafeFloor()
   if veinCount>0 then report("Mined a connected vein of "..veinCount.." blocks") end
 end
 
@@ -315,7 +353,7 @@ local function digSpiral(depth)
     recordRoute()
     if turtle.detectUp() and not turtle.digUp() then error("Cannot clear staircase headroom") end
     if not down(true) then error("Unbreakable floor in spiral") end
-    recordRoute(); mineExposedResources()
+    recordRoute(); ensureSafeFloor(); mineExposedResources()
     onSide=onSide+1
     if onSide==CFG.spiralSide then turnRight(); onSide=0 end
   end
@@ -327,6 +365,7 @@ local function digBranch(length)
     ensureReady()
     if not forward(true) then break end
     recordRoute()
+    ensureSafeFloor()
     if turtle.detectUp() then turtle.digUp(); mined=mined+1 end
     mineExposedResources()
   end
@@ -343,6 +382,7 @@ local function digMine()
     ensureReady()
     if not forward(true) then error("Unbreakable block in main tunnel") end
     recordRoute()
+    ensureSafeFloor()
     if turtle.detectUp() then turtle.digUp(); mined=mined+1 end
     mineExposedResources()
     if i%CFG.branchSpacing==0 then

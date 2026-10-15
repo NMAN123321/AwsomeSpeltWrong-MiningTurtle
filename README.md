@@ -32,7 +32,9 @@ The turtle keeps and returns:
 - Raw iron, gold and copper
 - Common Tekkit metals and rare resources including tin, silver, lead, nickel, platinum, uranium, iridium, ruby, sapphire, certus quartz, osmium, zinc, cinnabar and apatite
 
-Stone, cobblestone, deepslate, dirt, gravel and other unrecognized blocks are dropped underground and eventually despawn. Edit `resourceWords` near the top of `miner.lua` to add a mod-specific resource name.
+Stone, deepslate, dirt, gravel and other unrecognized blocks are dropped underground and eventually despawn. One stack of cobblestone or cobbled deepslate is reserved for construction; excess stacks are dropped. Edit `resourceWords` near the top of `miner.lua` to add a mod-specific resource name.
+
+The turtle keeps its fullest stack of cobblestone or cobbled deepslate as building material. It checks the block beneath every spiral step and tunnel block; when a cave or mined floor ore leaves an opening, it fills the opening before continuing. If there is no solid floor and no reserved building material, it stops rather than leaving a dangerous player drop. These are full-block steps, so players walk down normally and jump while walking back up.
 
 When a tunnel exposes a recognized resource, the turtle enters the deposit and follows connected resource blocks in all six directions. It then retraces the vein back to the exact tunnel block where it started. A single vein is capped at 64 blocks (`maxVeinBlocks`) to avoid filling the inventory or following an unusually large modded deposit indefinitely.
 
