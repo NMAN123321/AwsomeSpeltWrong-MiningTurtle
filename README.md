@@ -4,7 +4,7 @@ This project is for a CC:Tweaked Mining Turtle in Tekkit Classic Reloaded 1.3.1.
 
 ## Mine layout
 
-The turtle starts on the surface beside its home chest. It cuts a descending square spiral in a fixed **5x5 footprint**, with two-block headroom so a player can walk down the same route. At the selected depth it creates a 48-block main tunnel with eight-block branches on both sides every six blocks.
+The turtle starts on the surface beside its home chest. It cuts a descending square spiral in a fixed **5x5 footprint**, with two-block headroom so a player can walk down the same route. At the selected depth it clears a **10x10x4 staging room**, then mines a continuous tunnel grid across the five-by-five chunk square centered on the starting chunk (two chunks outward in every horizontal direction).
 
 By default, entering the correct surface Y makes it descend to **Y -54**, a useful Minecraft 1.19.2 diamond and redstone level. If the Y prompt is left blank, it descends 80 blocks instead.
 
@@ -20,7 +20,7 @@ This is a compact spiral stairwell, not a completely hollow 5x5 vertical quarry.
 2. Place a chest or barrel in any directly adjacent block. Behind the turtle is easiest.
 3. Put plenty of coal or charcoal in the chest. A surface-to-deepslate run and all return trips can require several hundred fuel operations.
 4. Put `miner.lua` on the turtle and run `miner`.
-5. Enter the turtle's current Minecraft Y coordinate from the F3 screen.
+5. Enter the turtle's current Minecraft Y, X, and Z coordinates from the F3 screen. X and Z let it align the grid exactly to chunk boundaries; leaving either blank produces a centered 80x80 grid instead.
 6. Optionally attach a wireless modem and run `monitor.lua` on a wireless computer.
 
 ## Resource handling
@@ -51,4 +51,8 @@ At the chest, the turtle fuels itself to `longRunFuelTarget` (5,000 movement ope
 - A normal CC:Tweaked turtle cannot load chunks. Use the included FTB Chunks map to claim and force-load every chunk containing the 5x5 shaft and horizontal tunnels. Server settings may restrict force-loading.
 - Delete `.spiral-miner-state` only when the turtle is physically back at its original surface position and facing its original direction.
 
-Configuration such as target Y, shaft footprint, tunnel length, branch spacing, and fuel reserve is at the top of `miner.lua`.
+Configuration such as target Y, shaft footprint, room size, chunk radius, grid spacing, and fuel reserve is at the top of `miner.lua`.
+
+## Grid coverage
+
+Grid tunnels are one block wide, two blocks high, and spaced three blocks center-to-center. This leaves two block columns between neighboring tunnels: one is scanned from each side, so every block across the horizontal target layer is inspected without quarrying the entire 80x80 area. The rows are connected in a serpentine path, avoiding a separate trip back to the room for every shaft. Connected valuable veins are still mined in all six directions. The grid covers 25 chunks when valid surface X/Z coordinates are supplied; force-load all 25 before leaving the area.

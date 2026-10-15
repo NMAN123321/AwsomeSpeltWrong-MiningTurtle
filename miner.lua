@@ -5,9 +5,10 @@ local CFG = {
   targetY = -54,
   fallbackDepth = 80,
   spiralSide = 4,
-  mainTunnel = 48,
-  branchSpacing = 6,
-  branchLength = 8,
+  roomSize = 10,
+  roomHeight = 4,
+  gridChunkRadius = 2,
+  gridSpacing = 3,
   maxVeinBlocks = 64,
   statusEvery = 12,
   fuelReserve = 320,
@@ -360,38 +361,89 @@ local function digSpiral(depth)
   end
 end
 
-local function digBranch(length)
-  local routeMark=#route
-  for _=1,length do
-    ensureReady()
-    if not forward(true) then break end
-    recordRoute()
-    ensureSafeFloor()
-    if turtle.detectUp() then turtle.digUp(); mined=mined+1 end
-    mineExposedResources()
+local function recordedForward(clearHeadroom,scanResources,checkFloor)
+  ensureReady()
+  if not forward(true) then error("Unbreakable block in mining area") end
+  recordRoute()
+  if checkFloor then ensureSafeFloor() end
+  if clearHeadroom and turtle.detectUp() then turtle.digUp(); mined=mined+1 end
+  if scanResources then mineExposedResources() end
+end
+
+local function recordedHorizontalTo(x,z,clearHeadroom,scanResources,checkFloor)
+  if pos.x~=x then
+    face(pos.x<x and 1 or 3)
+    while pos.x~=x do recordedForward(clearHeadroom,scanResources,checkFloor) end
   end
-  while #route>routeMark do
-    local target=route[#route-1]
-    if not moveAdjacent(target,false) then error("A branch tunnel became blocked") end
-    table.remove(route); save()
+  if pos.z~=z then
+    face(pos.z<z and 2 or 0)
+    while pos.z~=z do recordedForward(clearHeadroom,scanResources,checkFloor) end
   end
 end
 
-local function digMine()
-  report("Searching target layer")
-  for i=1,CFG.mainTunnel do
-    ensureReady()
-    if not forward(true) then error("Unbreakable block in main tunnel") end
-    recordRoute()
-    ensureSafeFloor()
-    if turtle.detectUp() then turtle.digUp(); mined=mined+1 end
-    mineExposedResources()
-    if i%CFG.branchSpacing==0 then
-      local mainDir=pos.dir
-      turnLeft(); digBranch(CFG.branchLength); face(mainDir)
-      turnRight(); digBranch(CFG.branchLength); face(mainDir)
+local function clearRoom()
+  report("Clearing 10x10x4 staging room")
+  local routeMark=#route
+  local anchor=copyPoint()
+  local minX=anchor.x-math.floor((CFG.roomSize-1)/2)
+  local maxX=minX+CFG.roomSize-1
+  local minZ=anchor.z-math.floor((CFG.roomSize-1)/2)
+  local maxZ=minZ+CFG.roomSize-1
+
+  recordedHorizontalTo(minX,minZ,false,false,true)
+  for level=0,CFG.roomHeight-1 do
+    if level>0 then
+      recordedHorizontalTo(minX,minZ,false,false,false)
+      ensureReady()
+      if not up(true) then error("Could not excavate the staging room ceiling") end
+      recordRoute()
     end
-    if i%CFG.statusEvery==0 then report("Searching target layer") end
+    for row=0,CFG.roomSize-1 do
+      local targetX=(row%2==0) and maxX or minX
+      recordedHorizontalTo(targetX,pos.z,false,false,level==0)
+      if row<CFG.roomSize-1 then recordedHorizontalTo(pos.x,pos.z+1,false,false,level==0) end
+    end
+  end
+
+  -- Return to the spiral anchor without making the permanent home route tour the room.
+  while #route>routeMark do
+    local target=route[#route-1]
+    if not moveAdjacent(target,false) then error("The staging room route became blocked") end
+    table.remove(route); save()
+  end
+  face(anchor.dir)
+end
+
+local function gridBounds(startX,startZ)
+  if startX and startZ then
+    local centerChunkX=math.floor(startX/16)
+    local centerChunkZ=math.floor(startZ/16)
+    local minWorldX=(centerChunkX-CFG.gridChunkRadius)*16
+    local minWorldZ=(centerChunkZ-CFG.gridChunkRadius)*16
+    local width=(CFG.gridChunkRadius*2+1)*16
+    return minWorldX-startX,minWorldX-startX+width-1,
+      minWorldZ-startZ,minWorldZ-startZ+width-1
+  end
+  local width=(CFG.gridChunkRadius*2+1)*16
+  local low=-math.floor(width/2)
+  return low,low+width-1,low,low+width-1
+end
+
+local function digGrid(startX,startZ)
+  local minX,maxX,minZ,maxZ=gridBounds(startX,startZ)
+  report("Connecting to the 5x5 chunk mining grid")
+  recordedHorizontalTo(minX,minZ,true,true,true)
+
+  local row=0
+  local z=minZ
+  while z<=maxZ do
+    local targetX=(row%2==0) and maxX or minX
+    recordedHorizontalTo(targetX,z,true,true,true)
+    row=row+1
+    local nextZ=minZ+row*CFG.gridSpacing
+    if nextZ<=maxZ then recordedHorizontalTo(pos.x,nextZ,true,true,true) end
+    z=nextZ
+    if row%CFG.statusEvery==0 then report("Mining chunk grid row "..row) end
   end
 end
 
@@ -402,6 +454,11 @@ local function run()
   print("(shown on F3), or leave blank for "..CFG.fallbackDepth.." blocks:")
   local entered=tonumber(read())
   local depth=entered and math.max(1,math.floor(entered-CFG.targetY)) or CFG.fallbackDepth
+  print("Enter current X (blank uses a centered 80x80 grid):")
+  local startX=tonumber(read())
+  print("Enter current Z (blank uses a centered 80x80 grid):")
+  local startZ=tonumber(read())
+  if not startX or not startZ then startX=nil; startZ=nil end
   print("Will descend "..depth.." blocks toward Y "..CFG.targetY..".")
   print("Press Enter to begin."); read()
   if not findAdjacentChest() then error("No chest or barrel directly beside the turtle") end
@@ -412,7 +469,7 @@ local function run()
   if fuel~="unlimited" and fuel<CFG.fuelReserve then
     error("The chest does not contain enough turtle fuel (need "..CFG.fuelReserve.." minimum)")
   end
-  digSpiral(depth); digMine(); serviceChest(false)
+  digSpiral(depth); clearRoom(); digGrid(startX,startZ); serviceChest(false)
   report("Finished safely at the surface chest")
 end
 
